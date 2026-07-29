@@ -3,11 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 async function helpCommand(sock, chatId, message) {
-    const helpMessage = `
-
-
-
-╔═══════════════════╗
+    const helpMessage = `╔═══════════════════╗
 🌐 *General Commands*:
 ║ ➤ .help or .menu
 ║ ➤ .ping
@@ -214,47 +210,23 @@ async function helpCommand(sock, chatId, message) {
 ║ ➤ .sc
 ║ ➤ .script
 ║ ➤ .repo
-╚═══════════════════╝
-
-Join our channel for updates:`;
+╚═══════════════════╝`;
 
     try {
         const imagePath = path.join(__dirname, '../assets/bot_image.jpg');
         
         if (fs.existsSync(imagePath)) {
             const imageBuffer = fs.readFileSync(imagePath);
-            
             await sock.sendMessage(chatId, {
                 image: imageBuffer,
-                caption: helpMessage,
-                contextInfo: {
-                    forwardingScore: 1,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120003161500005998@newsletter',
-                        newsletterName: 'YUKI-BOT',
-                        serverMessageId: -1
-                    }
-                }
-            },{ quoted: message });
+                caption: helpMessage
+            }, { quoted: message });
         } else {
-            console.error('Bot image not found at:', imagePath);
-            await sock.sendMessage(chatId, { 
-                text: helpMessage,
-                contextInfo: {
-                    forwardingScore: 1,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120003161500005998@newsletter',
-                        newsletterName: 'YUKI-BOT',
-                        serverMessageId: -1
-                    } 
-                }
-            });
+            await sock.sendMessage(chatId, { text: helpMessage }, { quoted: message });
         }
     } catch (error) {
         console.error('Error in help command:', error);
-        await sock.sendMessage(chatId, { text: helpMessage });
+        await sock.sendMessage(chatId, { text: helpMessage }, { quoted: message });
     }
 }
 
