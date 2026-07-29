@@ -146,8 +146,8 @@ const soraCommand = require('./commands/sora');
 // Global settings
 global.packname = settings.packname;
 global.author = settings.author;
-global.channelLink = "https://whatsapp.com/channel/0029V0000AnIHphOuO8Msp3A";
-global.ytch = "Boss";
+global.channelLink = "https://youtube.com/@bobdjb?si=lHbGENgSbbT5AsB0";
+global.ytch = "BobdjB";
 
 // Add this near the top of main.js with other global configurations
 const channelInfo = {
@@ -155,8 +155,8 @@ const channelInfo = {
         forwardingScore: 1,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-            newsletterJid: '120363161500005998@newsletter',
-            newsletterName: 'LainBot',
+            newsletterJid: '120003161500005998@newsletter',
+            newsletterName: 'YUKI-BOT',
             serverMessageId: -1
         }
     }
