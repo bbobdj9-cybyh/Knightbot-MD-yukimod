@@ -1,19 +1,14 @@
 const isAdmin = require('../lib/isAdmin');
 
-/**
- * Gestisce i comandi inattivi e viainattivi
- * @param {object} sock - Istanza del socket Baileys
- * @param {string} chatId - ID del gruppo (JID)
- * @param {string} senderId - ID del mittente (JID)
- * @param {object} message - Oggetto del messaggio originale
- * @param {string} command - Il comando eseguito ('inattivi' oppure 'viainattivi')
- */
-async function inattiviHandler(sock, chatId, senderId, message, command = 'inattivi') {
+async function inattiviCommand(sock, chatId, senderId, message) {
     try {
-        // Normalizza il nome del comando rimuovendo eventuali prefissi (. / !)
-        const cmd = command.toLowerCase().replace(/^[./!#]/, '');
+        // Verifica che sia un gruppo
+        if (!chatId.endsWith('@g.us')) {
+            await sock.sendMessage(chatId, { text: 'Questo comando funziona solo nei gruppi.' }, { quoted: message });
+            return;
+        }
 
-        // Verifica i permessi di amministrazione
+        // Controllo permessi Admin
         const { isSenderAdmin, isBotAdmin } = await isAdmin(sock, chatId, senderId);
 
         if (!isBotAdmin) {
@@ -26,31 +21,53 @@ async function inattiviHandler(sock, chatId, senderId, message, command = 'inatt
             return;
         }
 
-        // Recupera i partecipanti del gruppo
-        const groupMetadata = await sock.groupMetadata(chatId);
-        const participants = groupMetadata.participants;
+        // Estrae il comando e l'eventuale numero (.inattivi o .inattivi 10)
+        const text = message.message?.conversation || 
+                     message.message?.extendedTextMessage?.text || 
+                     message.message?.imageMessage?.caption || 
+                     message.message?.videoMessage?.caption || '';
+                     
+        const parts = text.trim().split(/\s+/);
+        const command = parts[0].toLowerCase().replace(/^[./!#]/, '');
+        const limit = parseInt(parts[1]);
 
-        if (!participants || participants.length === 0) {
-            await sock.sendMessage(chatId, { text: 'Nessun partecipante trovato nel gruppo.' }, { quoted: message });
+        // Recupera i partecipanti dal gruppo
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participants = groupMetadata?.participants || [];
+
+        // Filtra ed esclude gli amministratori
+        const nonAdminParticipants = participants.filter(p => !p.admin).map(p => p.id);
+
+        if (nonAdminParticipants.length === 0) {
+            await sock.sendMessage(chatId, { text: 'Nessun membro non-admin trovato nel gruppo.' }, { quoted: message });
             return;
         }
 
-        // Esclude gli amministratori dal controllo inattività
-        const nonAdminParticipants = participants.filter(p => !p.admin);
+        let inattivi = [];
 
-        // Trova gli utenti inattivi controllando il database
-        const inattivi = nonAdminParticipants.filter(p => {
-            const userData = global.db?.data?.users?.[p.id];
-            return !userData || userData.chat === 0 || userData.msg === 0;
-        }).map(p => p.id);
+        // 1. Se il bot ha un database globale (global.db), controlla i dati
+        if (global.db?.data?.users) {
+            inattivi = nonAdminParticipants.filter(jid => {
+                const user = global.db.data.users[jid];
+                return !user || user.chat === 0 || user.msg === 0 || user.messages === 0;
+            });
+        } else {
+            // 2. Se non c'è DB, considera i membri non-admin
+            inattivi = [...nonAdminParticipants];
+        }
+
+        // Se hai specificato un numero (es. .inattivi 5 o .viainattivi 5)
+        if (!isNaN(limit) && limit > 0) {
+            inattivi = inattivi.slice(0, limit);
+        }
 
         if (inattivi.length === 0) {
             await sock.sendMessage(chatId, { text: 'Nessun utente inattivo trovato nel gruppo! 🎉' }, { quoted: message });
             return;
         }
 
-        // Esecuzione in base al comando
-        if (cmd === 'inattivi') {
+        // Esecuzione .inattivi
+        if (command === 'inattivi') {
             let messageText = `══════ •⊰✦⊱• ══════\n`;
             messageText += `𝐑𝐞𝐯𝐢𝐬𝐢𝐨𝐧𝐞 𝐢𝐧𝐚𝐭𝐭𝐢𝐯𝐢 😴\n`;
             messageText += `${groupMetadata.subject}\n\n`;
@@ -62,31 +79,25 @@ async function inattiviHandler(sock, chatId, senderId, message, command = 'inatt
 
             messageText += `\n══════ •⊰✦⊱• ══════`;
 
-            await sock.sendMessage(chatId, {
-                text: messageText,
-                mentions: inattivi
-            }, { quoted: message });
+            await sock.sendMessage(chatId, { text: messageText, mentions: inattivi }, { quoted: message });
 
-        } else if (cmd === 'viainattivi') {
-            // Avviso con tag degli utenti da rimuovere
+        // Esecuzione .viainattivi
+        } else if (command === 'viainattivi') {
             let messageText = `𝐑𝐈𝐌𝐎𝐙𝐈𝐎𝐍𝐄 𝐈𝐍𝐀𝐓𝐓𝐈𝐕𝐈 🚫\n\n`;
             inattivi.forEach(jid => {
                 messageText += `@${jid.split('@')[0]}\n`;
             });
 
-            await sock.sendMessage(chatId, {
-                text: messageText,
-                mentions: inattivi
-            }, { quoted: message });
+            await sock.sendMessage(chatId, { text: messageText, mentions: inattivi }, { quoted: message });
 
             // Rimuove gli utenti dal gruppo
             await sock.groupParticipantsUpdate(chatId, inattivi, 'remove');
         }
 
     } catch (error) {
-        console.error('Errore nella gestione degli inattivi:', error);
+        console.error('Errore nel comando inattivi:', error);
         await sock.sendMessage(chatId, { text: 'Si è verificato un errore durante l\'esecuzione del comando.' }, { quoted: message });
     }
 }
 
-module.exports = inattiviHandler;
+module.exports = inattiviCommand;
